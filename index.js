@@ -105,7 +105,7 @@ module.exports = {
         try {
           const content = event?.content;
           if (!content || typeof content !== "string") return;
-          if (content.length < 10 || content.length > 2000) return;
+          if (content.length < 20 || content.length > 2000) return;
           if (isNoise(content)) { api.logger.info(`memory-lancedb-pro: filtered noise`); return; }
 
           // P4: LLM classification
