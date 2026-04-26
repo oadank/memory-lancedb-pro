@@ -116,10 +116,20 @@ module.exports = {
           }
 
           const vector = await embeddings.embed(content);
-          await db.addMemory(content, vector, 1, category, {
-            channelId: event.channelId, sessionId: event.sessionId
-          });
-          api.logger.info(`memory-lancedb-pro: auto-captured 1 memory (category: ${category})`);
+          
+          // Self-evolve: lesson/error categories use addWithSelfEvolve
+          const EVOLVE_CATEGORIES = ['lesson', 'error', 'correction', 'best_practice'];
+          if (EVOLVE_CATEGORIES.includes(category)) {
+            const result = await db.addWithSelfEvolve(content, vector, 2, category, {
+              channelId: event.channelId, sessionId: event.sessionId
+            });
+            api.logger.info(`memory-lancedb-pro: self-evolve result: ${result.action} (${result.reason})`);
+          } else {
+            await db.addMemory(content, vector, 1, category, {
+              channelId: event.channelId, sessionId: event.sessionId
+            });
+            api.logger.info(`memory-lancedb-pro: auto-captured 1 memory (category: ${category})`);
+          }
 
           // P9: KB auto-promote
           const PROMOTE_PATTERNS = [
