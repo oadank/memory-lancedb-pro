@@ -40,13 +40,8 @@ memory-lancedb-pro/
 ├── index.js                      ← 插件入口（10KB），初始化 + 注册所有工具
 ├── openclaw.plugin.json          ← 插件元数据和配置 schema
 ├── ARCHITECTURE.md               ← 架构文档：每个文件的职责说明
-│
-├── memory-lancedb/               ← ⚠️ 内置基础层（基于原版 memory-lancedb）
-│   ├── index.js                  ← 原版入口
-│   ├── api.js                    ← API 辅助
-│   ├── config.js                 ← 配置常量
-│   ├── lancedb-runtime.js        ← LanceDB 运行时
-│   └── test-helpers.js           ← 测试辅助
+├── CHANGELOG.md                  ← 版本更新日志
+├── README.md                     ← 使用文档
 │
 ├── lib/                          ← 核心模块（7 个文件）
 │   ├── store.js                  ← MemoryDB 类：LanceDB CRUD、混合搜索
@@ -69,6 +64,8 @@ memory-lancedb-pro/
     ├── health.js                 ← 健康评估（3 个工具）
     └── knowledge-base.js         ← 知识库（4 个工具）
 ```
+
+> 2026.4.26 已删除 `memory-lancedb/` 目录（旧版代码，不再引用）
 
 > 📖 每个文件的详细职责见 `ARCHITECTURE.md`
 
@@ -227,14 +224,14 @@ npm install
 | **P10** | 健康仪表盘、自动清理 |
 | **P11** | 双层记忆架构（独立知识库） |
 | **P12** | 工具补全（update/forget/archive/compact） |
-| **2026.4.26** | 模块化重构：88KB 单文件 → 18 文件 |
+| **2026.4.26** | 模块化重构：88KB 单文件 → 18 文件；删除 `memory-lancedb/` 旧版代码；autoCapture 阈值 10→20 |
 
 ---
 
 ## 🤝 致谢
 
-- 基于 [CortexReach/memory-lancedb-pro](https://github.com/CortexReach/memory-lancedb-pro) 开发
-- 内置 [memory-lancedb](https://github.com/CortexReach/memory-lancedb) 作为基础层
+- 基于 [CortexReach/memory-lancedb-pro](https://github.com/CortexReach/memory-lancedb-pro) 的架构思路启发
+- 起步于 OpenClaw 内置的 memory-lancedb 插件
 
 ---
 
