@@ -1,8 +1,16 @@
 # memory-lancedb-pro
 
-> 🔧 OpenClaw 记忆插件 Pro 版 — 基于 memory-lancedb 深度开发的长记忆系统。
+> 🔧 OpenClaw 记忆插件 Pro 版 — 从内置 memory-lancedb 起步，一步步改出来的独立长记忆系统。
 
 **2026.4.26 模块化重构**：从 88KB 单文件拆分为 18 个模块文件，入口仅 10KB。功能零丢失，架构更清晰。
+
+---
+
+## 📖 项目来历
+
+最初基于 [CortexReach/memory-lancedb-pro](https://github.com/CortexReach/memory-lancedb-pro) 开发。由于原项目在我自己的主机上不断崩溃，始终找不到根源，无奈之下从内置的 memory-lancedb 为基础，一步步修改、调试、添加功能，最终变成了现在这个功能更多、更稳定的版本。
+
+感谢原作者的开源工作，这个项目的起点离不开你的代码。
 
 ---
 
