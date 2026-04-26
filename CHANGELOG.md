@@ -1,5 +1,15 @@
 # Changelog
 
+## v2026.4.26-self-evolve — 2026-04-26
+
+### 新增功能
+- **Self-evolve 自动晋升机制**：错误/教训类记忆自动进化到知识库
+  - `addWithSelfEvolve()`: 自动检测相似的 lesson/error/correction/best_practice 记忆
+  - 相似度 >= 0.85 视为同一错误，自动递增 `repeatCount`
+  - 当 `repeatCount >= 3` 时，自动晋升到知识库（knowledge_base），并从 memory 层删除原条目
+  - 实现"犯一次记 memory，犯三次进知识库"的闭环
+- 新增 `repeatCount` 字段到 memory schema
+
 ## v2026.4.26 — 2026-04-26
 
 ### 重大变更
