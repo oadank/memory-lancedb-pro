@@ -11,7 +11,8 @@ function register(api, { db, embeddings }) {
     } else {
       db.knowledgeBaseTable = await db.db.createTable('knowledge_base', [{
         id: '__schema__', text: '', vector: Array(db.vectorDim).fill(0),
-        category: '', createdAt: Date.now(), source: '', importance: 0
+        category: '', createdAt: Date.now(), source: '', importance: 0,
+        promotedFrom: '', repeatCount: 0, originalCreatedAt: 0
       }]);
       await db.knowledgeBaseTable.delete("id = '__schema__'");
     }
@@ -67,7 +68,8 @@ function register(api, { db, embeddings }) {
       const kbTable = await getKnowledgeTable();
       const vector = await embeddings.embed(body);
       const id = randomUUID();
-      await kbTable.add([{ id, text: body, vector, category, source, importance, createdAt: Date.now() }]);
+      await kbTable.add([{ id, text: body, vector, category, source, importance, createdAt: Date.now(),
+        promotedFrom: '', repeatCount: 0, originalCreatedAt: 0 }]);
       return { id, ok: true, category, source };
     }
   });

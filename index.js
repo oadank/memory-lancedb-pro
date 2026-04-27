@@ -7,7 +7,8 @@ const lancedb = require("@lancedb/lancedb");
 // ============================================================
 // Lib imports
 // ============================================================
-const { MemoryDB, recallFromWiki } = require("./lib/store");
+const { MemoryDB } = require("./lib/store");
+const { recallFromWiki } = require("./lib/wiki-recall");
 const { Embeddings } = require("./lib/embedder");
 const { Reranker } = require("./lib/reranker");
 const { LLMExtractor } = require("./lib/extractor");
@@ -239,7 +240,7 @@ module.exports = {
           if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
           const catMap = {user_message:"[对话]",decision:"[决策]",fact:"[事实]",preference:"[偏好]",process:"[过程]",entity:"[实体]",concept:"[概念]",lesson:"[教训]",summary:"[总结]",other:"[参考]"};
           const ctx = filtered.map(r => {
-            const isWiki = r.source === "MEMORY.md" || (r._source && r._source.includes("/"));
+            const isWiki = r.source === "MEMORY.md" || r.category === "wiki" || (r._source && r._source.includes("/"));
             const label = isWiki ? "[wiki]" : (catMap[r.category] || "[其他]");
             // Wiki authority boost: 1.5x multiplier
             if (isWiki) r._normalizedScore *= 1.5;
