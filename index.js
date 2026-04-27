@@ -231,7 +231,7 @@ module.exports = {
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
             .slice(0, MAX_RESULTS);  // 动态数量
           if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
-          const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",other:"参考"};
+          const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",lesson:"教训",other:"参考"};
           const ctx = filtered.map(r => `- [${catMap[r.category] || "其他"}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`).join("\n");
           const topHit = filtered[0];
           const activeHint = topHit._normalizedScore > 0.5
