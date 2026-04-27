@@ -247,6 +247,7 @@ npm install
 | **P12** | 工具补全（update/forget/archive/compact） |
 | **2026.4.26** | 模块化重构：88KB 单文件 → 18 文件；删除 `memory-lancedb/` 旧版代码；autoCapture 阈值 10→20 |
 | **2026.4.27** | 新增 Dreaming 梦境功能：定时提炼 + MEMORY.md/DREAMS.md 写入 + MEMORY.md → 知识库同步 |
+| **2026.4.27-fix** | 修复 Dreaming Deep promote bug（LanceDB update API 格式）+ KB 同步 source 字段 + LLM 提炼超时优化 |
 
 ---
 

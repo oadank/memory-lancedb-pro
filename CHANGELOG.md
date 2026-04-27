@@ -1,5 +1,15 @@
 # Changelog
 
+## v2026.4.27-dreaming-fix — 2026-04-27
+
+### 修复（Dreaming Deep 阶段 + KB 同步）
+- **`db.table.update()` API 调用格式错误**：`dreaming.js` 中 promote tier 使用错误的 `(filter, callback)` 格式，导致 LanceDB 报 `Cannot use 'in' operator to search for 'values'`。修复为 `{ where, values }` 格式
+- **Deep results 显示 newTier 始终等于 oldTier**：修复为根据评分阈值计算 resolvedTier，正确显示提升后的 tier 值
+- **KB 同步 source 字段被过滤**：`addKBEntry()` 的 KB_SCHEMA_FIELDS 白名单缺少 `source`，导致 MEMORY.md 同步时 `source: "MEMORY.md"` 被丢弃。已加入白名单
+- **Deep promote 全量修复**：29 条 peripheral → working 全部成功，零错误（之前全部失败）
+- **KB 同步验证通过**：12 条 MEMORY.md 条目成功入库，4 条自动去重跳过
+- **LLM 提炼稳定性**：限制 20 条记忆 + 60 秒超时，避免大 prompt 超时（此前 30 秒超时导致空内容）
+
 ## v2026.4.27-dreaming — 2026-04-27
 
 ### 新增功能
