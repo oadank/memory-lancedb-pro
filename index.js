@@ -178,11 +178,12 @@ module.exports = {
         const forceRecall = shouldForceRecall(event.prompt);
         try {
           const vector = await embeddings.embed(event.prompt);
-          // Fetch more candidates (limit*3 in hybridSearch), then filter by quality
+          // Fetch more candidates for better filtering
           const results = await db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker);
           if (results.length === 0) return;
-          const MIN_SCORE = 0.45;  // 提高阈值，过滤不相关内容（之前 0.25 太低）
-          const MAX_RESULTS = 3;   // 最多注入 3 条，但不够就不凑数（之前硬塞 3 条）
+          // KB 召回：用原始向量相似度，不用 lengthNormalizeScore（那会过度惩罚长文本）
+          const MIN_SIM = 0.18;  // 知识库条目阈值（BGE embedding 对短语查询通常 0.15-0.30）
+          const MAX_RESULTS = 3;   // 最多注入 3 条，不够就不凑数
           const filtered = results
             .filter(r => !isNoise(r.text))
             .filter(r => {
@@ -191,18 +192,18 @@ module.exports = {
             })
             .map(r => ({
               category: r.category || "other", text: r.text,
-              _normalizedScore: lengthNormalizeScore(1 - (r._distance || 0), (r.text || "").length)
+              _normalizedScore: 1 - (r._distance || 0)  // 直接用原始相似度，不用 length 惩罚
             }))
-            .filter(r => r._normalizedScore >= MIN_SCORE)  // 动态过滤：低于阈值的不要
+            .filter(r => r._normalizedScore >= MIN_SIM)  // 过滤不相关结果
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
-            .slice(0, MAX_RESULTS);  // 动态数量：有 2 条就 2 条，有 1 条就 1 条，没有就 0 条
-          if (filtered.length === 0) return;  // 没有高匹配结果，不注入（节省上下文）
+            .slice(0, MAX_RESULTS);  // 动态数量：有几条注入几条，没有就 0 条
+          if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
           const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",other:"参考"};
           const ctx = filtered.map(r => `- [${catMap[r.category] || "其他"}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`).join("\n");
           const topHit = filtered[0];
-          const activeHint = topHit._normalizedScore > 0.8
+          const activeHint = topHit._normalizedScore > 0.5
             ? `\n\n💡 主动提醒：你之前提到过 "${topHit.text.slice(0, 30)}..." 相关内容` : "";
-          api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_score=${MIN_SCORE})`);
+          api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
           return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" + activeHint };
         } catch (err) { api.logger.warn(`memory-lancedb-pro: recall failed: ${String(err)}`); }
       });
