@@ -181,7 +181,7 @@ module.exports = {
           // Fetch more candidates for better filtering
           const [kbResults, wikiResults] = await Promise.all([
             db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWiki(event.prompt, 2).catch(() => [])
+            recallFromWiki(event.prompt, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
           ]);
           const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
@@ -241,6 +241,8 @@ module.exports = {
           const ctx = filtered.map(r => {
             const isWiki = r.source === "MEMORY.md" || (r._source && r._source.includes("/"));
             const label = isWiki ? "[wiki]" : (catMap[r.category] || "[其他]");
+            // Wiki authority boost: 1.5x multiplier
+            if (isWiki) r._normalizedScore *= 1.5;
             return `- [${label}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`;
           }).join("\n");
           const topHit = filtered[0];
