@@ -234,7 +234,7 @@ module.exports = {
           const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",other:"参考"};
           const ctx = filtered.map(r => `- [${catMap[r.category] || "其他"}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`).join("\n");
           const topHit = filtered[0];
-          const activeHint = topHit._normalizedScore > 0.4
+          const activeHint = topHit._normalizedScore > 0.5
             ? `\n\n💡 主动提醒：你之前提到过 "${topHit.text.slice(0, 30)}..." 相关内容` : "";
           api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
           return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" + activeHint };
