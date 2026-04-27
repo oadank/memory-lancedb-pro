@@ -181,27 +181,46 @@ module.exports = {
           // Fetch more candidates for better filtering
           const results = await db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker);
           if (results.length === 0) return;
-          // KB 召回：用原始向量相似度，不用 lengthNormalizeScore（那会过度惩罚长文本）
-          const MIN_SIM = 0.18;  // 知识库条目阈值（BGE embedding 对短语查询通常 0.15-0.30）
+          // KB 召回：不用 lengthNormalizeScore（过度惩罚长文本），用混合分数 + 原始相似度
+          const MIN_SIM = 0.15;  // KB 条目阈值（BGE 对 markdown 格式文本的查询通常 0.15-0.30）
           const MAX_RESULTS = 3;   // 最多注入 3 条，不够就不凑数
-          const filtered = results
+          // 去重：用 2-gram Jaccard 去除内容重复的条目（保留最高分）
+          const seen = new Map();
+          const uniqueResults = [];
+          for (const r of results) {
+            const norm = (r.text || "").toLowerCase().replace(/\s+/g, "");
+            let isDup = false;
+            for (const [key] of seen) {
+              const a = key; const b = norm;
+              if (a === b || (a.length > 10 && b.length > 10 && jaccardSimilarity(a, b, 2) >= 0.8)) {
+                isDup = true; break;
+              }
+            }
+            if (!isDup) { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
+            else { const prev = seen.get(norm); if (r._distance < uniqueResults[prev]._distance) uniqueResults[prev] = r; }
+          }
+          const filtered = uniqueResults
             .filter(r => !isNoise(r.text))
             .filter(r => {
               const similarity = 1 - (r._distance || 0);
               return similarity < 0.9;
             })
-            .map(r => ({
-              category: r.category || "other", text: r.text,
-              _normalizedScore: 1 - (r._distance || 0)  // 直接用原始相似度，不用 length 惩罚
-            }))
-            .filter(r => r._normalizedScore >= MIN_SIM)  // 过滤不相关结果
+            .map(r => {
+              const rawSim = 1 - (r._distance || 0);
+              const hybridScore = r._hybridScore || r._finalScore || rawSim;
+              return {
+                category: r.category || "other", text: r.text,
+                _normalizedScore: Math.max(rawSim, hybridScore * 0.5)
+              };
+            })
+            .filter(r => r._normalizedScore >= MIN_SIM)
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
-            .slice(0, MAX_RESULTS);  // 动态数量：有几条注入几条，没有就 0 条
+            .slice(0, MAX_RESULTS);  // 动态数量
           if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
           const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",other:"参考"};
           const ctx = filtered.map(r => `- [${catMap[r.category] || "其他"}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`).join("\n");
           const topHit = filtered[0];
-          const activeHint = topHit._normalizedScore > 0.5
+          const activeHint = topHit._normalizedScore > 0.4
             ? `\n\n💡 主动提醒：你之前提到过 "${topHit.text.slice(0, 30)}..." 相关内容` : "";
           api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
           return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" + activeHint };
