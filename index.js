@@ -187,7 +187,7 @@ module.exports = {
           const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
           // KB 召回：不用 lengthNormalizeScore（过度惩罚长文本），用混合分数 + 原始相似度
-          const MIN_SIM = 0.15;  // KB 条目阈值（BGE 对 markdown 格式文本的查询通常 0.15-0.30）
+          const MIN_SIM = 0.5;  // 提高阈值，拒绝不相关条目（KB + wiki 通用）
           const MAX_RESULTS = 3;   // 最多注入 3 条，不够就不凑数
           // 去重：用 2-gram Jaccard 去除内容重复的条目（保留最高分）
           // 去重：精确相同才合并；Jaccard 仅作为辅助判断（阈值 0.95，防误判）
