@@ -182,7 +182,7 @@ module.exports = {
           // Fetch more candidates for better filtering
           const [kbResults, wikiResults] = await Promise.all([
             db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWikiWithVector(vector, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
+            recallFromWikiWithVector(vector, event.prompt, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
           ]);
           const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
