@@ -8,7 +8,7 @@ const lancedb = require("@lancedb/lancedb");
 // Lib imports
 // ============================================================
 const { MemoryDB } = require("./lib/store");
-const { recallFromWiki } = require("./lib/wiki-recall.cjs");
+const { recallFromWikiWithVector } = require("./lib/wiki-recall.cjs");
 const { Embeddings } = require("./lib/embedder");
 const { Reranker } = require("./lib/reranker");
 const { LLMExtractor } = require("./lib/extractor");
@@ -179,25 +179,10 @@ module.exports = {
         const forceRecall = shouldForceRecall(event.prompt);
         try {
           const vector = await embeddings.embed(event.prompt);
-          // Clean query for wiki recall: strip envelope metadata
-          const cleanQuery = (() => {
-            // Try to extract the actual user message from envelope
-            const lines = event.prompt.split('\n').filter(l => l.trim().length > 0);
-            // Find the last non-metadata line (after timestamp bracket)
-            for (let i = lines.length - 1; i >= 0; i--) {
-              const line = lines[i].trim();
-              // Skip JSON/metadata/envelope lines
-              if (line.startsWith('{') || line.startsWith('}') || line.startsWith('"') ||
-                  line.startsWith('Sender') || line.startsWith('[')) continue;
-              // Found actual user content
-              return line;
-            }
-            return event.prompt;
-          })();
           // Fetch more candidates for better filtering
           const [kbResults, wikiResults] = await Promise.all([
             db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWiki(cleanQuery, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
+            recallFromWikiWithVector(vector, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
           ]);
           const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
