@@ -200,18 +200,14 @@ module.exports = {
 
           // === 评分系统：向量 60% + jieba 关键词 40% ===
           const jieba = require("./lib/wiki-recall.cjs");
-          // 清洗信封元数据，只取用户实际输入
-          let cleanQuery = event.prompt;
-          const lines = cleanQuery.split('\n').filter(l => l.trim().length > 0);
-          for (let i = lines.length - 1; i >= 0; i--) {
-            const line = lines[i].trim();
-            if (!line.startsWith('{') && !line.startsWith('}') && !line.startsWith('"') &&
-                !line.startsWith('[') && !line.startsWith('Sender') && !line.includes('untrusted')) {
-              cleanQuery = line;
-              break;
-            }
-          }
+          // 提取用户实际消息：直接匹配 [Day YYYY-MM-DD HH:MM GMT+8] 时间戳格式的行
+          const raw = event.prompt || "";
+          const msgLines = raw.split('\n').filter(l => l.trim().length > 2);
+          // 匹配 [Day YYYY-MM-DD HH:MM GMT+8] 或 [Day YYYY-MM-DD HH:MM:SS GMT+8] 格式
+          const tsMatch = raw.match(/\[([A-Z][a-z]{2})\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?\s+GMT[^\]]*\]\s*(.+)/);
+          const cleanQuery = tsMatch ? tsMatch[2].trim() : msgLines[msgLines.length - 1] || raw;
           const keywords = jieba.tokenize ? jieba.tokenize(cleanQuery) : [];
+          api.logger.info(`[memory-lancedb-pro] cleanQuery: "${cleanQuery.slice(0, 80)}" keywords: ${JSON.stringify(keywords)}`);
 
           const MIN_COMBINED = 0.35;  // 组合分数门槛
           const MAX_RESULTS = 3;
