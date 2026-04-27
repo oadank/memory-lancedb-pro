@@ -7,7 +7,7 @@ const lancedb = require("@lancedb/lancedb");
 // ============================================================
 // Lib imports
 // ============================================================
-const { MemoryDB } = require("./lib/store");
+const { MemoryDB, recallFromWiki } = require("./lib/store");
 const { Embeddings } = require("./lib/embedder");
 const { Reranker } = require("./lib/reranker");
 const { LLMExtractor } = require("./lib/extractor");
@@ -179,7 +179,11 @@ module.exports = {
         try {
           const vector = await embeddings.embed(event.prompt);
           // Fetch more candidates for better filtering
-          const results = await db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker);
+          const [kbResults, wikiResults] = await Promise.all([
+            db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
+            recallFromWiki(event.prompt, 2).catch(() => [])
+          ]);
+          const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
           // KB 召回：不用 lengthNormalizeScore（过度惩罚长文本），用混合分数 + 原始相似度
           const MIN_SIM = 0.15;  // KB 条目阈值（BGE 对 markdown 格式文本的查询通常 0.15-0.30）
@@ -223,7 +227,9 @@ module.exports = {
               const rawSim = 1 - (r._distance || 0);
               const hybridScore = r._hybridScore || r._finalScore || rawSim;
               return {
-                category: r.category || "other", text: r.text,
+                category: r.category || "other",
+                source: r.source || r.category || "kb",
+                text: r.text,
                 _normalizedScore: Math.max(rawSim, hybridScore * 0.5)
               };
             })
@@ -231,11 +237,16 @@ module.exports = {
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
             .slice(0, MAX_RESULTS);  // 动态数量
           if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
-          const catMap = {user_message:"对话",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",lesson:"教训",other:"参考"};
-          const ctx = filtered.map(r => `- [${catMap[r.category] || "其他"}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`).join("\n");
+          const catMap = {user_message:"[对话]",decision:"[决策]",fact:"[事实]",preference:"[偏好]",process:"[过程]",entity:"[实体]",concept:"[概念]",lesson:"[教训]",summary:"[总结]",other:"[参考]"};
+          const ctx = filtered.map(r => {
+            const isWiki = r.source === "MEMORY.md" || (r._source && r._source.includes("/"));
+            const label = isWiki ? "[wiki]" : (catMap[r.category] || "[其他]");
+            return `- [${label}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`;
+          }).join("\n");
           const topHit = filtered[0];
+          const matchedTerms = (() => { const q = query.toLowerCase(); const t = topHit.text.toLowerCase(); const words = q.split(/[\s，。,]+/).filter(w => w.length > 1); const matched = words.filter(w => t.includes(w)); return matched.slice(0, 3).join("、"); })();
           const activeHint = topHit._normalizedScore > 0.5
-            ? `\n\n💡 主动提醒：你之前提到过 "${topHit.text.slice(0, 30)}..." 相关内容` : "";
+            ? `\n\n💡 主动提醒：匹配原因："${event.prompt}" 因为包含「${matchedTerms || "语义相关"}」匹配到 " ${topHit.text.slice(0, 30)}..."` : "";
           api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
           return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" + activeHint };
         } catch (err) { api.logger.warn(`memory-lancedb-pro: recall failed: ${String(err)}`); }
