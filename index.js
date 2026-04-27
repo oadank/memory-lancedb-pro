@@ -252,11 +252,8 @@ module.exports = {
             return isWiki ? 'wiki:' + (r._source || r.source) : 'kb:' + r.category;
           }).join(', ')}`);
           const topHit = filtered[0];
-          const matchedTerms = (() => { const q = event.prompt.toLowerCase(); const t = topHit.text.toLowerCase(); const words = q.split(/[\s，。,]+/).filter(w => w.length > 1); const matched = words.filter(w => t.includes(w)); return matched.slice(0, 3).join("、"); })();
-          const activeHint = topHit._normalizedScore > 0.5
-            ? `\n\n💡 主动提醒：匹配原因："${event.prompt}" 因为包含「${matchedTerms || "语义相关"}」匹配到 " ${topHit.text.slice(0, 30)}..."` : "";
           api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
-          return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" + activeHint };
+          return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" };
         } catch (err) { api.logger.warn(`memory-lancedb-pro: recall failed: ${String(err)}`); }
       });
     }
