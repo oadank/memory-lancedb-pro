@@ -8,7 +8,7 @@ const lancedb = require("@lancedb/lancedb");
 // Lib imports
 // ============================================================
 const { MemoryDB } = require("./lib/store");
-const { recallFromWiki } = require("./lib/wiki-recall");
+const { recallFromWiki } = require("./lib/wiki-recall.cjs");
 const { Embeddings } = require("./lib/embedder");
 const { Reranker } = require("./lib/reranker");
 const { LLMExtractor } = require("./lib/extractor");
