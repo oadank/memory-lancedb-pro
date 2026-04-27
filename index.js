@@ -185,19 +185,33 @@ module.exports = {
           const MIN_SIM = 0.15;  // KB 条目阈值（BGE 对 markdown 格式文本的查询通常 0.15-0.30）
           const MAX_RESULTS = 3;   // 最多注入 3 条，不够就不凑数
           // 去重：用 2-gram Jaccard 去除内容重复的条目（保留最高分）
+          // 去重：精确相同才合并；Jaccard 仅作为辅助判断（阈值 0.95，防误判）
           const seen = new Map();
           const uniqueResults = [];
           for (const r of results) {
             const norm = (r.text || "").toLowerCase().replace(/\s+/g, "");
-            let isDup = false;
-            for (const [key] of seen) {
-              const a = key; const b = norm;
-              if (a === b || (a.length > 10 && b.length > 10 && jaccardSimilarity(a, b, 2) >= 0.8)) {
-                isDup = true; break;
+            const prevIdx = seen.get(norm);
+            if (prevIdx !== undefined) {
+              // exact dup — keep the one with lower distance (higher similarity)
+              const prev = uniqueResults[prevIdx];
+              const prevDist = prev._distance ?? 999;
+              const thisDist = r._distance ?? 999;
+              if (thisDist < prevDist) uniqueResults[prevIdx] = r;
+            } else {
+              // not exact — check Jaccard against existing
+              let isJaccardDup = false;
+              for (const [key, idx] of seen) {
+                if (key !== norm && key.length > 20 && norm.length > 20 && jaccardSimilarity(key, norm, 2) >= 0.95) {
+                  isJaccardDup = true;
+                  const prev = uniqueResults[idx];
+                  const prevDist = prev._distance ?? 999;
+                  const thisDist = r._distance ?? 999;
+                  if (thisDist < prevDist) uniqueResults[idx] = r;
+                  break;
+                }
               }
+              if (!isJaccardDup) { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
             }
-            if (!isDup) { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
-            else { const prev = seen.get(norm); if (r._distance < uniqueResults[prev]._distance) uniqueResults[prev] = r; }
           }
           const filtered = uniqueResults
             .filter(r => !isNoise(r.text))
