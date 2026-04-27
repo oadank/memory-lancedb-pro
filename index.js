@@ -183,10 +183,20 @@ module.exports = {
           // Fetch more candidates for better filtering
           const [kbResults, wikiResults] = await Promise.all([
             db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWikiWithVector(vector, event.prompt, 2).catch(e => { api.logger.warn("memory-lancedb-pro: wiki recall failed: " + e.message); return []; })
+            recallFromWikiWithVector(vector, event.prompt, 2).then(r => {
+              api.logger.info(`memory-lancedb-pro: wiki recall returned ${r?.length || 0} results`);
+              return r;
+            }).catch(e => {
+              api.logger.warn(`memory-lancedb-pro: wiki recall failed: ${e.message}\n${e.stack}`);
+              return [];
+            })
           ]);
           const results = [...wikiResults, ...kbResults];
-          if (results.length === 0) return;
+          api.logger.info(`memory-lancedb-pro: raw results — wiki:${wikiResults.length} kb:${kbResults.length} total:${results.length}`);
+          if (results.length === 0) {
+            api.logger.info(`memory-lancedb-pro: no raw results, returning`);
+            return;
+          }
 
           // === 评分系统：向量 60% + jieba 关键词 40% ===
           const jieba = require("./lib/wiki-recall.cjs");
