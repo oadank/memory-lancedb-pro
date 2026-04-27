@@ -186,73 +186,77 @@ module.exports = {
           ]);
           const results = [...wikiResults, ...kbResults];
           if (results.length === 0) return;
-          // KB 召回：不用 lengthNormalizeScore（过度惩罚长文本），用混合分数 + 原始相似度
-          const MIN_SIM = 0.5;  // 提高阈值，拒绝不相关条目（KB + wiki 通用）
-          const MAX_RESULTS = 3;   // 最多注入 3 条，不够就不凑数
-          // 去重：用 2-gram Jaccard 去除内容重复的条目（保留最高分）
-          // 去重：精确相同才合并；Jaccard 仅作为辅助判断（阈值 0.95，防误判）
+
+          // === 评分系统：向量 60% + jieba 关键词 40% ===
+          const jieba = require("./lib/wiki-recall.cjs");
+          const keywords = jieba.tokenize ? jieba.tokenize(event.prompt) : [];
+
+          const MIN_COMBINED = 0.35;  // 组合分数门槛
+          const MAX_RESULTS = 3;
+
+          // 去重
           const seen = new Map();
           const uniqueResults = [];
           for (const r of results) {
             const norm = (r.text || "").toLowerCase().replace(/\s+/g, "");
             const prevIdx = seen.get(norm);
             if (prevIdx !== undefined) {
-              // exact dup — keep the one with lower distance (higher similarity)
               const prev = uniqueResults[prevIdx];
-              const prevDist = prev._distance ?? 999;
-              const thisDist = r._distance ?? 999;
-              if (thisDist < prevDist) uniqueResults[prevIdx] = r;
-            } else {
-              // not exact — check Jaccard against existing
-              let isJaccardDup = false;
-              for (const [key, idx] of seen) {
-                if (key !== norm && key.length > 20 && norm.length > 20 && jaccardSimilarity(key, norm, 2) >= 0.95) {
-                  isJaccardDup = true;
-                  const prev = uniqueResults[idx];
-                  const prevDist = prev._distance ?? 999;
-                  const thisDist = r._distance ?? 999;
-                  if (thisDist < prevDist) uniqueResults[idx] = r;
-                  break;
-                }
-              }
-              if (!isJaccardDup) { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
-            }
+              if ((r._normalizedScore || 0) > (prev._normalizedScore || 0)) uniqueResults[prevIdx] = r;
+            } else { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
           }
-          const filtered = uniqueResults
+
+          // 统一评分：KB 条目用 0.6*inv + 0.4*kw，wiki 条目已有 _normalizedScore
+          const scored = uniqueResults
             .filter(r => !isNoise(r.text))
-            .filter(r => {
-              const similarity = 1 - (r._distance || 0);
-              return similarity < 0.9;
-            })
             .map(r => {
-              const rawSim = 1 - (r._distance || 0);
-              const hybridScore = r._hybridScore || r._finalScore || rawSim;
+              // Wiki 条目已有组合分数
+              if (r._normalizedScore !== undefined && r.category === "wiki") return r;
+
+              // KB 条目：重新计算
+              const dist = r._distance || 0;
+              const invScore = 1 / (1 + dist);
+
+              // jieba 关键词匹配
+              let matched = 0;
+              const text = (r.text || "").toLowerCase();
+              for (const kw of keywords) {
+                if (text.includes(kw.toLowerCase())) matched++;
+              }
+              const kwScore = keywords.length > 0 ? matched / keywords.length : 0;
+              const combined = 0.6 * invScore + 0.4 * kwScore;
+
               return {
-                category: r.category || "other",
-                source: r.source || r.category || "kb",
-                text: r.text,
-                _normalizedScore: Math.max(rawSim, hybridScore * 0.5)
+                ...r,
+                _normalizedScore: combined,
+                _kwScore: kwScore,
+                _kwMatched: matched,
+                _kwTotal: keywords.length
               };
             })
-            .filter(r => r._normalizedScore >= MIN_SIM)
+            // 门槛：combined >= 0.35 且至少匹配 1 个关键词
+            .filter(r => r._normalizedScore >= MIN_COMBINED && (r._kwMatched || 0) >= 1)
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
-            .slice(0, MAX_RESULTS);  // 动态数量
-          if (filtered.length === 0) return;  // 无高匹配结果，不注入（省 token）
-          const catMap = {user_message:"[对话]",decision:"[决策]",fact:"[事实]",preference:"[偏好]",process:"[过程]",entity:"[实体]",concept:"[概念]",lesson:"[教训]",summary:"[总结]",other:"[参考]"};
-          const ctx = filtered.map(r => {
-            const isWiki = r.source === "MEMORY.md" || r.category === "wiki" || (r._source && r._source.includes("/"));
-            const label = isWiki ? "[wiki]" : (catMap[r.category] || "[其他]");
-            // Wiki authority boost: 1.5x multiplier
-            if (isWiki) r._normalizedScore *= 1.5;
+            .slice(0, MAX_RESULTS);
+
+          if (scored.length === 0) return;
+
+          // 标签：统一单括号
+          const catMap = {user_message:"[memory]",decision:"[决策]",fact:"[事实]",preference:"[偏好]",process:"[过程]",entity:"[实体]",concept:"[概念]",lesson:"[教训]",summary:"[总结]",other:"[参考]"};
+          const ctx = scored.map(r => {
+            // source=MEMORY.md 的条目标 [memory]，wiki vault 的标 [wiki]
+            const isMemoryMd = r.source === "MEMORY.md" && !r._source;
+            const isWiki = r.category === "wiki" || (r._source && r._source.includes("/"));
+            const label = isWiki ? "[wiki]" : (isMemoryMd ? "[memory]" : (catMap[r.category] || "[其他]"));
             return `- [${label}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`;
           }).join("\n");
-          // DEBUG: log what we're injecting
-          api.logger.info(`memory-lancedb-pro: recall sources — ${filtered.map(r => {
-            const isWiki = r.source === "MEMORY.md" || r.category === "wiki" || (r._source && r._source.includes("/"));
-            return isWiki ? 'wiki:' + (r._source || r.source) : 'kb:' + r.category;
-          }).join(', ')}`);
-          const topHit = filtered[0];
-          api.logger.info(`memory-lancedb-pro: injecting ${filtered.length} memories into context (min_sim=${MIN_SIM})`);
+
+          api.logger.info(`memory-lancedb-pro: recall sources — ${scored.map(r => {
+            const isWiki = r.category === "wiki" || (r._source && r._source.includes("/"));
+            const isMemoryMd = r.source === "MEMORY.md" && !r._source;
+            return isWiki ? 'wiki:' + r._source : isMemoryMd ? 'memory:' + r.category : 'kb:' + r.category;
+          }).join(', ')} (kw: ${keywords.slice(0,6).join('/')})`);
+          api.logger.info(`memory-lancedb-pro: injecting ${scored.length} memories into context (min=${MIN_COMBINED})`);
           return { prependContext: "\n💾 系统快照（禁止调用）：\n```\n" + ctx + "\n```\n🔚 结束" };
         } catch (err) { api.logger.warn(`memory-lancedb-pro: recall failed: ${String(err)}`); }
       });
