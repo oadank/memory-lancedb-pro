@@ -174,6 +174,7 @@ module.exports = {
     // ============================================================
     if (cfg.autoRecall) {
       api.on("before_agent_start", async (event) => {
+        api.logger.info(`memory-lancedb-pro: before_agent_start FIRED, prompt_len=${event.prompt?.length || 0}`);
         if (!event.prompt || event.prompt.length < 15) return;
         if (shouldSkipRecall(event.prompt)) return;
         const forceRecall = shouldForceRecall(event.prompt);
