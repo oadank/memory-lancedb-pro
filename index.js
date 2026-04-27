@@ -189,7 +189,18 @@ module.exports = {
 
           // === 评分系统：向量 60% + jieba 关键词 40% ===
           const jieba = require("./lib/wiki-recall.cjs");
-          const keywords = jieba.tokenize ? jieba.tokenize(event.prompt) : [];
+          // 清洗信封元数据，只取用户实际输入
+          let cleanQuery = event.prompt;
+          const lines = cleanQuery.split('\n').filter(l => l.trim().length > 0);
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (!line.startsWith('{') && !line.startsWith('}') && !line.startsWith('"') &&
+                !line.startsWith('[') && !line.startsWith('Sender') && !line.includes('untrusted')) {
+              cleanQuery = line;
+              break;
+            }
+          }
+          const keywords = jieba.tokenize ? jieba.tokenize(cleanQuery) : [];
 
           const MIN_COMBINED = 0.35;  // 组合分数门槛
           const MAX_RESULTS = 3;
