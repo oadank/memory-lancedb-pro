@@ -27,6 +27,8 @@
 | **知识图谱** | 实体提取、关系分析、主题时间线、自动摘要 |
 | **智能遗忘** | 自动清理低价值记忆（peripheral + 过期 + 低召回） |
 | **自动进化** | lesson/error 类记忆自动检测相似项，重复 ≥3 次晋升到知识库 |
+| **梦境 Dreaming** | 定时自动提炼记忆精华，写入 MEMORY.md + DREAMS.md |
+| **MEMORY.md 同步** | 自动将 MEMORY.md 内容同步到知识库 |
 | **多会话同步** | 跨会话/设备记忆同步与共享包 |
 | **100% 本地运行** | BGE Embedding 本地服务，零外部依赖 |
 | **中文原生** | 中文 Embedding + 中文查询 + 中文噪音过滤 |
@@ -43,16 +45,18 @@ memory-lancedb-pro/
 ├── CHANGELOG.md                  ← 版本更新日志
 ├── README.md                     ← 使用文档
 │
-├── lib/                          ← 核心模块（7 个文件）
+├── lib/                          ← 核心模块（9 个文件）
 │   ├── store.js                  ← MemoryDB 类：LanceDB CRUD、混合搜索
 │   ├── embedder.js               ← Embeddings 类：BGE 向量生成
 │   ├── reranker.js               ← Reranker 类：重排序
 │   ├── extractor.js              ← LLMExtractor 类：智能分类
 │   ├── noise-filter.js           ← 噪音过滤
 │   ├── decay.js                  ← Weibull 衰减 + 三级晋级
+│   ├── dreaming.js               ← 梦境 Dreaming：记忆提炼 + 文件写入
+│   ├── sync-memory-md.js         ← MEMORY.md → 知识库同步
 │   └── utils.js                  ← 公共工具函数
 │
-└── tools/                        ← 工具注册（10 个文件，29 个工具）
+└── tools/                        ← 工具注册（12 个文件，31 个工具）
     ├── recall.js                 ← 召回类（3 个工具）
     ├── crud.js                   ← 增删改（3 个工具）
     ├── stats.js                  ← 统计类（3 个工具）
@@ -62,7 +66,9 @@ memory-lancedb-pro/
     ├── export.js                 ← 导出（2 个工具）
     ├── sync.js                   ← 同步/迁移（3 个工具）
     ├── health.js                 ← 健康评估（3 个工具）
-    └── knowledge-base.js         ← 知识库（4 个工具）
+    ├── knowledge-base.js         ← 知识库（4 个工具）
+    ├── dreaming-tools.js         ← 梦境（2 个工具）
+    └── sync-memory-md.js         ← MEMORY.md 同步（1 个工具）
 ```
 
 > 2026.4.26 已删除 `memory-lancedb/` 目录（旧版代码，不再引用）
@@ -128,6 +134,10 @@ npm install
             "apiKey": "your-llm-key",
             "baseUrl": "http://localhost:4000",
             "model": "auto"
+          },
+          "dreaming": {
+            "enabled": true,
+            "frequency": "0 3 * * *"
           }
         }
       }
@@ -138,7 +148,7 @@ npm install
 
 ---
 
-## 🛠️ 29 个工具一览
+## 🛠️ 31 个工具一览
 
 ### 召回类
 | 工具 | 说明 |
@@ -209,6 +219,17 @@ npm install
 | `memory_knowledge_list` | 列出知识 |
 | `memory_knowledge_delete` | 删除知识 |
 
+### 梦境
+| 工具 | 说明 |
+|------|------|
+| `memory_dreaming_run` | 手动触发梦境提炼 |
+| `memory_dreaming_schedule` | 查看/设置梦境定时 |
+
+### MEMORY.md 同步
+| 工具 | 说明 |
+|------|------|
+| `memory_sync_md_to_kb` | 将 MEMORY.md 同步到知识库 |
+
 ---
 
 ## 📊 开发历程
@@ -225,6 +246,7 @@ npm install
 | **P11** | 双层记忆架构（独立知识库） |
 | **P12** | 工具补全（update/forget/archive/compact） |
 | **2026.4.26** | 模块化重构：88KB 单文件 → 18 文件；删除 `memory-lancedb/` 旧版代码；autoCapture 阈值 10→20 |
+| **2026.4.27** | 新增 Dreaming 梦境功能：定时提炼 + MEMORY.md/DREAMS.md 写入 + MEMORY.md → 知识库同步 |
 
 ---
 

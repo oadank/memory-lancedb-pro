@@ -1,5 +1,30 @@
 # Changelog
 
+## v2026.4.27-dreaming — 2026-04-27
+
+### 新增功能
+- **Dreaming 梦境功能**：替代 OpenClaw 内置 memory-core 的 Dreaming，完全自主实现
+  - `lib/dreaming.js`: Light 阶段（收集去重）→ Deep 阶段（评分提升 tier）→ LLM 提炼 → 文件写入
+  - 定时调度：默认每天凌晨 3 点自动运行（可配置 cron）
+  - 手动触发：`memory_dreaming_run` 工具随时执行
+  - LLM 提炼：从当天记忆中提取 决策/偏好/教训/事实/进展，写入 `MEMORY.md`
+  - Dream Diary：生成人类可读的梦境日记，写入 `DREAMS.md`
+  - 评分模型：频率(0.30) + 分类重要性(0.25) + 新鲜度(0.25) + 概念丰富度(0.10) + 长度(0.10)
+  - 提升阈值：peripheral → working (>=0.55)，working → core (>=0.65)
+- **MEMORY.md → 知识库同步**：`lib/sync-memory-md.js` + `tools/sync-memory-md.js`
+  - 读取 `MEMORY.md` 中 `###` 标记的条目
+  - 解析、向量化、去重后存入 `knowledge_base` 表
+  - 工具名：`memory_sync_md_to_kb`
+
+### 配置变更
+- 新增 `dreaming` 配置块：`{ enabled: true, frequency: "0 3 * * *" }`
+- 新增 `llm` 配置块：用于 LLM 分类 + Dreaming 提炼（默认走 LiteLLM 代理）
+
+### 工具新增
+- `memory_dreaming_run` — 手动触发梦境提炼
+- `memory_dreaming_schedule` — 查看/设置梦境定时
+- `memory_sync_md_to_kb` — MEMORY.md 同步到知识库
+
 ## v2026.4.26-self-evolve — 2026-04-26
 
 ### 新增功能

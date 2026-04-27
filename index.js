@@ -15,6 +15,7 @@ const { isNoise, shouldForceRecall, shouldSkipRecall, ENVELOPE_PATTERNS } = requ
 const { lengthNormalizeScore } = require("./lib/utils");
 const { jaccardSimilarity } = require("./lib/utils");
 const { shouldDemote } = require("./lib/decay");
+const { runDreaming, scheduleDreaming } = require("./lib/dreaming");
 
 // ============================================================
 // Tool imports
@@ -29,6 +30,7 @@ const exportTools = require("./tools/export");
 const syncTools = require("./tools/sync");
 const healthTools = require("./tools/health");
 const kbTools = require("./tools/knowledge-base");
+const dreamingTools = require("./tools/dreaming-tools");
 
 // ============================================================
 // Constants
@@ -54,7 +56,8 @@ module.exports = {
         required: ["apiKey"]
       },
       dbPath: { type: "string" }, autoCapture: { type: "boolean" }, autoRecall: { type: "boolean" },
-      dreaming: { type: "object" }, storageOptions: { type: "object" },
+      dreaming: { type: "object", properties: { enabled: { type: "boolean" }, frequency: { type: "string" } } },
+      storageOptions: { type: "object" },
       rerank: { type: "object", properties: { apiKey: { type: "string" }, baseUrl: { type: "string" }, model: { type: "string" } } },
       llm: { type: "object", properties: { apiKey: { type: "string" }, baseUrl: { type: "string" }, model: { type: "string" } } }
     },
@@ -74,10 +77,11 @@ module.exports = {
     console.error("[DEBUG] embeddings created, client=", !!embeddings?.client, "model=", embeddings?.model);
     const reranker = cfg.rerank?.apiKey ? new Reranker(cfg.rerank.apiKey, cfg.rerank.baseUrl) : null;
     const llmExtractor = new LLMExtractor(cfg.llm?.apiKey, cfg.llm?.baseUrl);
+    const llmClient = llmExtractor?.client ? { client: llmExtractor.client, model: llmExtractor.model } : null;
 
     // Shared deps for all tools
     const deps = {
-      api, db, embeddings, reranker,
+      api, db, embeddings, reranker, extractor: llmClient,
       isNoise, lengthNormalizeScore, jaccardSimilarity, shouldDemote
     };
 
@@ -94,6 +98,11 @@ module.exports = {
     syncTools.register(api, deps);
     healthTools.register(api, deps);
     kbTools.register(api, deps);
+    dreamingTools.register(api, deps);
+
+    // MEMORY.md sync tool
+    const syncMdTools = require("./tools/sync-memory-md");
+    syncMdTools.register(api, deps);
 
     // ============================================================
     // Auto-capture (message_received)
@@ -197,14 +206,17 @@ module.exports = {
     }
 
     // ============================================================
-    // Background decay maintenance daemon
+    // Background services: decay maintenance + dreaming
     // ============================================================
+    console.error('[DEBUG] About to register memory-lancedb-pro service');
     api.registerService({
       id: "memory-lancedb-pro",
       async start() {
+        console.error('[DEBUG] Service start() called!');
         await db.ensureInitialized();
         api.logger.info(`memory-lancedb-pro: initialized (db: ${resolvedDbPath}, model: ${model})`);
 
+        // ---- Decay maintenance (existing) ----
         const runMaintenance = async () => {
           try {
             const all = await db.table.search(Array(db.vectorDim).fill(0)).limit(1000).toArray();
@@ -227,6 +239,23 @@ module.exports = {
           setTimeout(async () => { await runMaintenance(); scheduleMaintenance(); }, MAINTENANCE_INTERVAL);
         };
         setTimeout(scheduleMaintenance, 5 * 60 * 1000);
+
+        // ---- Dreaming service ----
+        const dreamingEnabled = cfg.dreaming?.enabled;
+        if (dreamingEnabled) {
+          const dreamingDeps = { api, db, embeddings, extractor: llmClient, reranker };
+          const dreamingFreq = cfg.dreaming?.frequency || "0 3 * * *";
+          api.logger.info(`[dreaming] Scheduled (cron: ${dreamingFreq})`);
+          scheduleDreaming(api, dreamingDeps, { frequency: dreamingFreq });
+
+          // Also run a quick dream 5 minutes after startup (for testing)
+          setTimeout(async () => {
+            api.logger.info("[dreaming] Quick start run (5min after boot)");
+            await runDreaming(dreamingDeps, { extract: true, diary: true });
+          }, 5 * 60 * 1000);
+        } else {
+          api.logger.info("[dreaming] Disabled (set dreaming.enabled=true to enable)");
+        }
       },
       async stop() { api.logger.info("memory-lancedb-pro: stopped"); }
     });
