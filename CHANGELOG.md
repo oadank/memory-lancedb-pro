@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.4.28-dreaming-v3 — 2026-04-28
+
+### 重大重构（三阶段梦境系统，对齐 memory-core）
+- **Light → REM → Deep 三阶段模型**：从单阶段改为完整三阶段，模仿 OpenClaw 内置 memory-core 的 Dreaming 流程
+  - `lightPhase()`: 去重、候选筛选、记录 checkpoint（已处理 ID 追踪）
+  - `remPhase()`: LLM 提炼主题/反思/日记，写入 `DREAMS.md`
+  - `deepPhase()`: 6 维评分 + 阶段信号加成 + 双门槛过滤，写入 `MEMORY.md`
+- **状态追踪系统**：新增 `memory/.dreams/` 目录
+  - `checkpoint.json`: 记录已处理记忆 ID + 最后运行时间
+  - `lock.json`: 防止重复运行（5 分钟超时）
+  - `phase-signals.json`: Light/REM 阶段信号传递（为 Deep 评分加分）
+- **双门槛晋升**：`minScore >= 0.5` + `minRecallCount >= 2`（避免单次噪音进入知识层）
+- **Session 连贯性分析**：同一会话出现 >=3 条记忆时加分（0.02-0.08），连续讨论的话题更容易晋升
+- **dryRun 修复**：内联评分逻辑，不再依赖外部 `scoreMemory` 函数（解决 jiti 缓存导致的旧代码残留问题）
+
+### 修复
+- **jieba 分词保留**：wiki 被动召回已移除，但 jieba 中文分词继续保留用于关键词提取
+- **jiti 缓存问题**：删除 `node_modules/.cache/jiti/` 强制重新编译，避免旧函数引用残留
+
+### 移除
+- **wiki 被动召回**：`recallFromWikiWithVector()` 已移除（口语化查询匹配率低于 30%，改为 Agent 主动搜索）
+
 ## v2026.4.27-dreaming-fix — 2026-04-27
 
 ### 修复（Dreaming Deep 阶段 + KB 同步）

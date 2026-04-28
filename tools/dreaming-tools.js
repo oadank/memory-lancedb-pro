@@ -24,11 +24,18 @@ function register(api, { db, embeddings, reranker, extractor }) {
           if (m.id === "__schema__") return false;
           return (now - m.createdAt) / (60 * 60 * 1000) <= 24;
         });
-        const { scoreMemory } = require("../lib/dreaming");
-        const scored = recent.map(m => ({
-          id: m.id.slice(0, 8), text: m.text.slice(0, 80), category: m.category,
-          tier: m.tier, score: scoreMemory(m, now).total.toFixed(2)
-        })).sort((a, b) => b.score - a.score);
+        // 内联评分（不再依赖外部 scoreMemory）
+        const scored = recent.map(m => {
+          const age = (now - (m.createdAt || now)) / (24 * 60 * 60 * 1000);
+          const recency = Math.max(0, 1 - age / 30);
+          const richness = (m.text || "").length > 100 ? 0.8 : 0.4;
+          const recallBoost = Math.min((m.recallCount || 0) * 0.05, 0.5);
+          const total = recency * 0.4 + richness * 0.3 + recallBoost;
+          return {
+            id: m.id.slice(0, 8), text: m.text.slice(0, 80), category: m.category,
+            tier: m.tier, score: total.toFixed(2)
+          };
+        }).sort((a, b) => b.score - a.score);
 
         return {
           dryRun: true,

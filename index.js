@@ -187,24 +187,16 @@ module.exports = {
           const tsMatch = raw.match(/\[([A-Z][a-z]{2})\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?\s+GMT[^\]]*\]\s*(.+)/);
           const cleanQuery = tsMatch ? tsMatch[3].trim() : msgLines[msgLines.length - 1] || raw;
           
-          const [kbResults, wikiResults] = await Promise.all([
-            db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWikiWithVector(vector, cleanQuery, 2).then(r => {
-              api.logger.info(`memory-lancedb-pro: wiki recall returned ${r?.length || 0} results`);
-              return r;
-            }).catch(e => {
-              api.logger.warn(`memory-lancedb-pro: wiki recall failed: ${e.message}\n${e.stack}`);
-              return [];
-            })
-          ]);
-          const results = [...wikiResults, ...kbResults];
-          api.logger.info(`memory-lancedb-pro: raw results — wiki:${wikiResults.length} kb:${kbResults.length} total:${results.length}`);
+          // Wiki 召回已移除（口语化查询匹配率低，改为 Agent 主动搜索）
+          const kbResults = await db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker);
+          const results = [...kbResults];
+          api.logger.info(`memory-lancedb-pro: raw results — kb:${kbResults.length} total:${results.length}`);
           if (results.length === 0) {
             api.logger.info(`memory-lancedb-pro: no raw results, returning`);
             return;
           }
 
-          // === 评分系统：向量 60% + jieba 关键词 40% ===
+          // 评分系统：向量 60% + jieba 关键词 40%
           const jieba = require("./lib/wiki-recall.cjs");
           const keywords = jieba.tokenize ? jieba.tokenize(cleanQuery) : [];
           api.logger.info(`[memory-lancedb-pro] cleanQuery: "${cleanQuery.slice(0, 80)}" keywords: ${JSON.stringify(keywords)}`);
@@ -253,7 +245,7 @@ module.exports = {
               };
             })
             // 门槛：combined >= 0.35 且至少匹配 1 个关键词
-            .filter(r => r._normalizedScore >= MIN_COMBINED && (r._kwMatched || 0) >= 1)
+            .filter(r => r._normalizedScore >= 0.15)
             .sort((a, b) => b._normalizedScore - a._normalizedScore)
             .slice(0, MAX_RESULTS);
 
