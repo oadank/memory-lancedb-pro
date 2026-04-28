@@ -180,10 +180,16 @@ module.exports = {
         const forceRecall = shouldForceRecall(event.prompt);
         try {
           const vector = await embeddings.embed(event.prompt);
-          // Fetch more candidates for better filtering
+          
+          // 提取用户实际消息（清洗 JSON 元数据）
+          const raw = event.prompt || "";
+          const msgLines = raw.split('\n').filter(l => l.trim().length > 2);
+          const tsMatch = raw.match(/\[([A-Z][a-z]{2})\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?\s+GMT[^\]]*\]\s*(.+)/);
+          const cleanQuery = tsMatch ? tsMatch[3].trim() : msgLines[msgLines.length - 1] || raw;
+          
           const [kbResults, wikiResults] = await Promise.all([
             db.hybridSearchKB(vector, event.prompt, forceRecall ? 10 : 8, 0.7, 0.3, reranker),
-            recallFromWikiWithVector(vector, event.prompt, 2).then(r => {
+            recallFromWikiWithVector(vector, cleanQuery, 2).then(r => {
               api.logger.info(`memory-lancedb-pro: wiki recall returned ${r?.length || 0} results`);
               return r;
             }).catch(e => {
@@ -200,28 +206,22 @@ module.exports = {
 
           // === 评分系统：向量 60% + jieba 关键词 40% ===
           const jieba = require("./lib/wiki-recall.cjs");
-          // 提取用户实际消息：直接匹配 [Day YYYY-MM-DD HH:MM GMT+8] 时间戳格式的行
-          const raw = event.prompt || "";
-          const msgLines = raw.split('\n').filter(l => l.trim().length > 2);
-          // 匹配 [Day YYYY-MM-DD HH:MM GMT+8] 或 [Day YYYY-MM-DD HH:MM:SS GMT+8] 格式
-          const tsMatch = raw.match(/\[([A-Z][a-z]{2})\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?\s+GMT[^\]]*\]\s*(.+)/);
-          const cleanQuery = tsMatch ? tsMatch[2].trim() : msgLines[msgLines.length - 1] || raw;
           const keywords = jieba.tokenize ? jieba.tokenize(cleanQuery) : [];
           api.logger.info(`[memory-lancedb-pro] cleanQuery: "${cleanQuery.slice(0, 80)}" keywords: ${JSON.stringify(keywords)}`);
 
           const MIN_COMBINED = 0.35;  // 组合分数门槛
           const MAX_RESULTS = 3;
 
-          // 去重
+          // 去重：按 ID 去重（不用文本，因为 KB 条目前缀可能相同）
           const seen = new Map();
           const uniqueResults = [];
           for (const r of results) {
-            const norm = (r.text || "").toLowerCase().replace(/\s+/g, "");
-            const prevIdx = seen.get(norm);
+            const id = r.id || (r.text || "").toLowerCase().replace(/\s+/g, "").slice(0, 50);
+            const prevIdx = seen.get(id);
             if (prevIdx !== undefined) {
               const prev = uniqueResults[prevIdx];
               if ((r._normalizedScore || 0) > (prev._normalizedScore || 0)) uniqueResults[prevIdx] = r;
-            } else { seen.set(norm, uniqueResults.length); uniqueResults.push(r); }
+            } else { seen.set(id, uniqueResults.length); uniqueResults.push(r); }
           }
 
           // 统一评分：KB 条目用 0.6*inv + 0.4*kw，wiki 条目已有 _normalizedScore
@@ -259,13 +259,13 @@ module.exports = {
 
           if (scored.length === 0) return;
 
-          // 标签：统一单括号
-          const catMap = {user_message:"[memory]",decision:"[决策]",fact:"[事实]",preference:"[偏好]",process:"[过程]",entity:"[实体]",concept:"[概念]",lesson:"[教训]",summary:"[总结]",other:"[参考]"};
+          // 标签：统一单括号（label 自带 [ ]，外层不要再包）
+          const catMap = {user_message:"memory",decision:"决策",fact:"事实",preference:"偏好",process:"过程",entity:"实体",concept:"概念",lesson:"教训",summary:"总结",other:"参考"};
           const ctx = scored.map(r => {
             // source=MEMORY.md 的条目标 [memory]，wiki vault 的标 [wiki]
             const isMemoryMd = r.source === "MEMORY.md" && !r._source;
             const isWiki = r.category === "wiki" || (r._source && r._source.includes("/"));
-            const label = isWiki ? "[wiki]" : (isMemoryMd ? "[memory]" : (catMap[r.category] || "[其他]"));
+            const label = isWiki ? "wiki" : (isMemoryMd ? "memory" : (catMap[r.category] || "其他"));
             return `- [${label}] ${r.text} (分:${r._normalizedScore.toFixed(2)})`;
           }).join("\n");
 
