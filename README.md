@@ -235,4 +235,63 @@ npm install
 
 ---
 
+## 🖥️ Dashboard 管理面板
+
+memory-lancedb-pro 自带一个 Web Dashboard，提供记忆浏览、搜索、新增、编辑、删除等完整 CRUD 功能。
+
+### 启动方式
+
+```bash
+bash /opt/openclaw/extensions/memory-lancedb-pro/memory-pro-dashboard.sh
+```
+
+或手动启动：
+
+```bash
+cd /opt/openclaw/extensions/memory-lancedb-pro
+NODE_PATH=./node_modules DB_PATH=/root/.openclaw/memory/lancedb-pro PORT=1888 node dashboard-server.cjs
+```
+
+### 访问地址
+
+- **端口**：`1888`
+- **本机**：`http://localhost:1888`
+- **局域网**：`http://<N5105-IP>:1888`
+
+### 功能
+
+| 功能 | 说明 |
+|------|------|
+| 📊 总览面板 | KPI 卡片、增长趋势图、层级分布、质量分布 |
+| 📋 记忆列表 | 分页浏览、按分类/层级筛选、搜索 |
+| 📚 知识库 | 知识库条目浏览 |
+| 📈 趋势统计 | 每日新增、分类统计 |
+| ➕ 新增记忆 | 手动创建记忆条目 |
+| ✏️ 编辑记忆 | 修改记忆内容、分类、重要性 |
+| 🗑️ 删除记忆 | 确认后删除 |
+
+### 配置
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `PORT` | `1888` | 服务端口 |
+| `HOST` | `0.0.0.0` | 监听地址 |
+| `DB_PATH` | `/root/.openclaw/memory/lancedb-pro` | LanceDB 数据库路径 |
+
+### API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/stats` | 数据库统计 |
+| GET | `/api/memories` | 记忆列表（分页+筛选） |
+| GET | `/api/memory/:id` | 记忆详情 |
+| POST | `/api/memory` | 新增记忆 |
+| PUT | `/api/memory/:id` | 修改记忆 |
+| DELETE | `/api/memory/:id` | 删除记忆 |
+| GET | `/api/recall-trend` | 召回趋势 |
+| GET | `/api/categories` | 分类统计 |
+| GET | `/api/knowledge-base` | 知识库列表 |
+
+---
+
 *📖 架构详情见 `ARCHITECTURE.md`*

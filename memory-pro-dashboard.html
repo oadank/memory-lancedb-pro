@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memory Pro — 记忆管理面板</title>
+  <style>
+    :root {
+      --bg-marketing: #010102; --bg-panel: #0f1011; --bg-level3: #191a1b;
+      --bg-secondary: #28282c; --border-thin: rgba(255,255,255,0.05);
+      --border-medium: rgba(255,255,255,0.08); --text-primary: #f7f8f8;
+      --text-secondary: #d0d6e0; --text-tertiary: #8a8f98;
+      --text-quaternary: #62666d; --accent-bg: #5e6ad2;
+      --accent: #7170ff; --accent-hover: #828fff;
+      --success: #27a644; --success-light: #10b981;
+      --warning: #f59e0b; --danger: #ef4444;
+      --sidebar-width: 240px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-marketing); color: var(--text-primary);
+      font: 14px/1.5 'Inter', -apple-system, system-ui, sans-serif;
+      display: grid; grid-template-columns: var(--sidebar-width) 1fr;
+      min-height: 100vh; font-feature-settings: 'cv01', 'ss03';
+    }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      background: var(--bg-panel); border-right: 1px solid var(--border-thin);
+      padding: 16px 12px; position: sticky; top: 0; height: 100vh;
+      display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px; padding: 8px 10px 24px;
+      font-weight: 600; font-size: 15px; color: var(--text-primary);
+    }
+    .brand-icon {
+      width: 28px; height: 28px; background: var(--accent); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    .nav a {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      border-radius: 6px; color: var(--text-secondary); text-decoration: none;
+      font-size: 13px; font-weight: 500; transition: all 0.15s;
+    }
+    .nav a:hover { background: var(--bg-secondary); color: var(--text-primary); }
+    .nav a.active { background: rgba(94,106,210,0.15); color: var(--accent); font-weight: 510; }
+    .nav .group-label {
+      font-size: 11px; color: var(--text-quaternary); padding: 16px 10px 6px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .nav .badge {
+      margin-left: auto; font-size: 11px; background: var(--bg-secondary);
+      color: var(--text-tertiary); padding: 1px 6px; border-radius: 999px;
+    }
+    .sidebar-footer {
+      padding: 12px 10px; border-top: 1px solid var(--border-thin);
+      font-size: 11px; color: var(--text-quaternary);
+    }
+    .sidebar-footer .version { color: var(--text-tertiary); }
+
+    /* ===== Main Content ===== */
+    .main-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ===== Top Bar ===== */
+    .topbar {
+      background: var(--bg-panel); border-bottom: 1px solid var(--border-thin);
+      padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .topbar h1 { font-size: 16px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+    .topbar .breadcrumb { color: var(--text-tertiary); font-size: 13px; }
+    .search-box {
+      margin-left: auto; display: flex; align-items: center; gap: 8px;
+      background: var(--bg-level3); border: 1px solid var(--border-thin);
+      border-radius: 8px; padding: 6px 12px; width: 280px;
+    }
+    .search-box svg { flex-shrink: 0; color: var(--text-quaternary); }
+    .search-box input {
+      background: none; border: none; outline: none; color: var(--text-primary);
+      font-size: 13px; width: 100%;
+    }
+    .search-box input::placeholder { color: var(--text-quaternary); }
+    .search-box kbd {
+      font-size: 11px; background: var(--bg-secondary); color: var(--text-tertiary);
+      padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border-medium);
+      white-space: nowrap;
+    }
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--accent-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: white; cursor: pointer;
+    }
+
+    /* ===== Content ===== */
+    .content { padding: 24px; flex: 1; }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--bg-level3); border: 1px solid var(--border-thin);
+      border-radius: 10px; padding: 18px 20px;
+    }
+    .kpi-card:hover { border-color: var(--border-medium); }
+    .kpi-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .kpi-label .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .kpi-value { font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+    .kpi-delta { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    .kpi-delta.up { color: var(--success); }
+    .kpi-delta.down { color: var(--danger); }
+
+    /* Charts Row */
+    .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card {
+      background: var(--bg-level3); border: 1px solid var(--border-thin);
+      border-radius: 10px; padding: 20px;
+    }
+    .chart-card h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; }
+    .chart-placeholder {
+      height: 200px; display: flex; align-items: flex-end; gap: 4px; padding-bottom: 20px;
+      position: relative;
+    }
+    .chart-bar {
+      flex: 1; background: var(--accent-bg); border-radius: 2px 2px 0 0;
+      min-height: 4px; transition: opacity 0.15s; opacity: 0.7;
+    }
+    .chart-bar:hover { opacity: 1; }
+    .chart-bar.accent { background: var(--accent); opacity: 0.9; }
+    .chart-label {
+      position: absolute; bottom: 0; left: 0; right: 0; display: flex;
+      justify-content: space-between; font-size: 10px; color: var(--text-quaternary);
+    }
+    .chart-line { width: 100%; height: 100%; }
+
+    /* Stats cards */
+    .stats-list { display: flex; flex-direction: column; gap: 12px; }
+    .stat-item { display: flex; align-items: center; justify-content: space-between; }
+    .stat-item .stat-label { font-size: 13px; color: var(--text-secondary); }
+    .stat-item .stat-value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .stat-bar { height: 4px; background: var(--bg-secondary); border-radius: 2px; margin-top: 6px; }
+    .stat-bar-fill { height: 100%; border-radius: 2px; }
+
+    /* Memory Table */
+    .table-card {
+      background: var(--bg-level3); border: 1px solid var(--border-thin);
+      border-radius: 10px; overflow: hidden;
+    }
+    .table-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border-thin);
+    }
+    .table-header h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .table-filters { display: flex; gap: 8px; }
+    .filter-btn {
+      font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-thin);
+      background: transparent; color: var(--text-tertiary); cursor: pointer; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--border-medium); color: var(--text-secondary); }
+    .filter-btn.active { background: rgba(94,106,210,0.15); border-color: var(--accent-bg); color: var(--accent); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 500; color: var(--text-quaternary);
+      padding: 10px 20px; text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border-thin);
+    }
+    td {
+      padding: 12px 20px; font-size: 13px; border-bottom: 1px solid var(--border-thin);
+      color: var(--text-secondary);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .mem-title { color: var(--text-primary); font-weight: 500; }
+    .mem-category {
+      display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px;
+      font-weight: 500;
+    }
+    .mem-category.preference { background: rgba(39,166,68,0.15); color: var(--success); }
+    .mem-category.decision { background: rgba(113,112,255,0.15); color: var(--accent); }
+    .mem-category.fact { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .mem-category.entity { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .mem-category.concept { background: rgba(16,185,129,0.15); color: var(--success-light); }
+    .status-badge {
+      display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 500;
+    }
+    .status-badge.core { background: rgba(94,106,210,0.2); color: var(--accent); }
+    .status-badge.working { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .status-badge.peripheral { background: rgba(98,102,109,0.2); color: var(--text-tertiary); }
+    .time-ago { color: var(--text-quaternary); font-size: 12px; }
+    .table-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; font-size: 12px; color: var(--text-quaternary);
+    }
+    .pagination { display: flex; gap: 4px; }
+    .pagination button {
+      width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border-thin);
+      background: transparent; color: var(--text-tertiary); cursor: pointer; font-size: 12px;
+    }
+    .pagination button:hover { border-color: var(--border-medium); color: var(--text-secondary); }
+    .pagination button.active { background: var(--accent-bg); border-color: var(--accent-bg); color: white; }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .charts-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar" data-od-id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">M</div>
+      Memory Pro
+    </div>
+    <nav class="nav">
+      <a href="#" class="active">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        总览面板
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+        记忆列表
+        <span class="badge">247</span>
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+        近期召回
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M5 8l3 3 3-3"/></svg>
+        导入/导出
+      </a>
+      <div class="group-label">分析</div>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,12 6,6 10,9 14,3"/><polyline points="10,3 14,3 14,7"/></svg>
+        趋势统计
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6"/></svg>
+        质量评分
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v10h10"/><path d="M7 7l-4 4"/></svg>
+        知识图谱
+      </a>
+      <div class="group-label">系统</div>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM9 9h3v3H9z"/></svg>
+        插件配置
+      </a>
+      <a href="#">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+        系统设置
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      memory-lancedb-pro v1.0 · <span class="version">LanceDB</span>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-wrapper">
+    <!-- Top Bar -->
+    <header class="topbar" data-od-id="topbar">
+      <span class="breadcrumb">Memory Pro</span>
+      <h1>记忆总览</h1>
+      <div class="search-box">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><path d="M10 10l3 3"/></svg>
+        <input type="text" placeholder="搜索记忆、标签、分类…" />
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="user-avatar">阿</div>
+    </header>
+
+    <!-- Content -->
+    <main class="content" data-od-id="content">
+      <!-- KPI Cards -->
+      <div class="kpi-grid" data-od-id="kpi-cards">
+        <div class="kpi-card">
+          <div class="kpi-label"><span class="dot" style="background:var(--accent)"></span>总记忆数</div>
+          <div class="kpi-value">247</div>
+          <div class="kpi-delta up">↑ 18 本周新增</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><span class="dot" style="background:var(--success)"></span>召回准确率</div>
+          <div class="kpi-value">87.3%</div>
+          <div class="kpi-delta up">↑ 2.1% 较上周</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><span class="dot" style="background:var(--warning)"></span>核心记忆</div>
+          <div class="kpi-value">42</div>
+          <div class="kpi-delta" style="color:var(--text-tertiary)">17.0% of total</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label"><span class="dot" style="background:var(--text-quaternary)"></span>数据库大小</div>
+          <div class="kpi-value">18.6 MB</div>
+          <div class="kpi-delta" style="color:var(--text-tertiary)">512 维向量</div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-row" data-od-id="charts">
+        <div class="chart-card">
+          <h3>记忆增长趋势（近 30 天）</h3>
+          <div class="chart-placeholder">
+            <svg class="chart-line" viewBox="0 0 400 180" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#5e6ad2" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#5e6ad2" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="45" x2="400" y2="45" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="90" x2="400" y2="90" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="135" x2="400" y2="135" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <!-- Area fill -->
+              <path d="M0,150 L13,145 27,138 40,132 53,125 67,118 80,110 93,100 107,95 120,88 133,82 147,75 160,68 173,60 187,55 200,48 213,42 227,38 240,33 253,30 267,28 280,25 293,22 307,20 320,18 333,16 347,15 360,14 373,12 387,10 400,8 L400,180 L0,180 Z" fill="url(#areaGrad)"/>
+              <!-- Line -->
+              <polyline points="0,150 13,145 27,138 40,132 53,125 67,118 80,110 93,100 107,95 120,88 133,82 147,75 160,68 173,60 187,55 200,48 213,42 227,38 240,33 253,30 267,28 280,25 293,22 307,20 320,18 333,16 347,15 360,14 373,12 387,10 400,8" fill="none" stroke="#7170ff" stroke-width="2"/>
+              <!-- Dots -->
+              <circle cx="400" cy="8" r="4" fill="#7170ff"/>
+              <circle cx="400" cy="8" r="2" fill="#0f1011"/>
+            </svg>
+            <div class="chart-label">
+              <span>4/2</span><span>4/8</span><span>4/14</span><span>4/20</span><span>4/26</span><span>5/2</span>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>记忆分类占比</h3>
+          <div class="stats-list">
+            <div>
+              <div class="stat-item"><span class="stat-label">偏好 (preference)</span><span class="stat-value">68</span></div>
+              <div class="stat-bar"><div class="stat-bar-fill" style="width:27.5%;background:var(--success)"></div></div>
+            </div>
+            <div>
+              <div class="stat-item"><span class="stat-label">决策 (decision)</span><span class="stat-value">45</span></div>
+              <div class="stat-bar"><div class="stat-bar-fill" style="width:18.2%;background:var(--accent)"></div></div>
+            </div>
+            <div>
+              <div class="stat-item"><span class="stat-label">事实 (fact)</span><span class="stat-value">52</span></div>
+              <div class="stat-bar"><div class="stat-bar-fill" style="width:21.1%;background:var(--warning)"></div></div>
+            </div>
+            <div>
+              <div class="stat-item"><span class="stat-label">实体 (entity)</span><span class="stat-value">38</span></div>
+              <div class="stat-bar"><div class="stat-bar-fill" style="width:15.4%;background:var(--danger)"></div></div>
+            </div>
+            <div>
+              <div class="stat-item"><span class="stat-label">概念 (concept)</span><span class="stat-value">44</span></div>
+              <div class="stat-bar"><div class="stat-bar-fill" style="width:17.8%;background:var(--success-light)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory Table -->
+      <div class="table-card" data-od-id="memory-table">
+        <div class="table-header">
+          <h3>最近记忆</h3>
+          <div class="table-filters">
+            <button class="filter-btn active">全部</button>
+            <button class="filter-btn">偏好</button>
+            <button class="filter-btn">决策</button>
+            <button class="filter-btn">事实</button>
+            <button class="filter-btn">实体</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>记忆内容</th>
+              <th>分类</th>
+              <th>层级</th>
+              <th>质量分</th>
+              <th>最后访问</th>
+              <th>来源会话</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mem-title">喜欢用 tab 缩进，不用空格</td>
+              <td><span class="mem-category preference">偏好</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">8.7</td>
+              <td class="time-ago">2 小时前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">选择 PostgreSQL 作为项目数据库</td>
+              <td><span class="mem-category decision">决策</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">9.2</td>
+              <td class="time-ago">5 小时前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">OpenClaw 运行在 N5105 Docker 容器中</td>
+              <td><span class="mem-category fact">事实</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">9.5</td>
+              <td class="time-ago">1 天前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">SearXNG 本地搜索服务地址</td>
+              <td><span class="mem-category entity">实体</span></td>
+              <td><span class="status-badge working">working</span></td>
+              <td style="color:var(--warning)">6.3</td>
+              <td class="time-ago">2 天前</td>
+              <td class="time-ago">agent:mc:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">BGE-Small-ZH 512 维 embedding 模型</td>
+              <td><span class="mem-category entity">实体</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">8.1</td>
+              <td class="time-ago">3 天前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">memory-lancedb-pro P0-P4 全功能完成</td>
+              <td><span class="mem-category decision">决策</span></td>
+              <td><span class="status-badge working">working</span></td>
+              <td style="color:var(--warning)">7.0</td>
+              <td class="time-ago">4 天前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">橙子小朋友 3 岁 10 月体检合格</td>
+              <td><span class="mem-category fact">事实</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">9.8</td>
+              <td class="time-ago">5 天前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+            <tr>
+              <td class="mem-title">容器内 BGE embedding 必须用 host.docker.internal</td>
+              <td><span class="mem-category concept">概念</span></td>
+              <td><span class="status-badge core">core</span></td>
+              <td style="color:var(--success)">8.9</td>
+              <td class="time-ago">6 天前</td>
+              <td class="time-ago">agent:main:main</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="table-footer">
+          <span>显示 1-8 / 共 247 条</span>
+          <div class="pagination">
+            <button>‹</button>
+            <button class="active">1</button>
+            <button>2</button>
+            <button>3</button>
+            <button>…</button>
+            <button>31</button>
+            <button>›</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
